@@ -1,0 +1,45 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Unpack source zip
+        run: |
+          mkdir -p /tmp/src proj
+          unzip -q "$(ls *.zip | head -1)" -d /tmp/src
+          SPEC=$(find /tmp/src -name buildozer.spec | head -1)
+          cp -a "$(dirname "$SPEC")"/. proj/
+          ls -la proj
+      - name: Unit tests
+        working-directory: proj
+        run: |
+          python -m unittest discover -s tests -p "test_autoreply.py" -v
+          python -m unittest discover -s tests -p "test_manifest_hook.py" -v
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libffi-dev libssl-dev
+          pip install buildozer cython==0.29.36
+      - name: Build
+        working-directory: proj
+        run: buildozer -v android debug
+      - name: Verify manifest
+        working-directory: proj
+        run: |
+          AAPT=$(find "$HOME/.buildozer" -path '*build-tools*' -name aapt | sort | tail -1)
+          APK=$(ls bin/*.apk | head -1)
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml > manifest.txt
+          test "$(grep -c 'E: application ' manifest.txt || true)" = "1"
+          test "$(grep -c 'DouyinAccessibilityService' manifest.txt || true)" -ge 1
+          grep -q BIND_ACCESSIBILITY_SERVICE manifest.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xilian-ai-apk
+          path: proj/bin/*.apk
