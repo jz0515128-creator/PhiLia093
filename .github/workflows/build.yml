@@ -22,6 +22,10 @@ jobs:
         run: |
           python -m unittest discover -s tests -p "test_autoreply.py" -v
           python -m unittest discover -s tests -p "test_manifest_hook.py" -v
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - name: Install deps
         run: |
           sudo apt-get update
